@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>♻️ Recycling AI: Trash Sorting Model B</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #28a745; /* Recycling Green */
+            --secondary-color: #007bff; /* Accent Blue */
+            --background-color: #f8f9fa; /* Light Gray */
+            --card-background: #ffffff; /* White */
+            --text-color: #343a40; /* Dark Gray */
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--card-background);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 30px;
+            text-align: center;
+        }
+
+        /* Headings and Titles */
+        h1 {
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            color: var(--secondary-color);
+            margin-bottom: 25px;
+        }
+
+        /* File Upload Button Styling */
+        #imageUpload {
+            display: none; /* Hide the default button */
+        }
+
+        .upload-label {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .upload-label:hover {
+            background-color: #218838; /* Darker green on hover */
+        }
+
+        .upload-label:active {
+            transform: translateY(1px); /* Simple press effect */
+        }
+
+        /* Image Display */
+        #output {
+            display: block;
+            margin: 25px auto;
+            border: 4px solid var(--secondary-color);
+            border-radius: 10px;
+            object-fit: cover; /* Ensures image fills the area neatly */
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Prediction Results */
+        #label-container {
+            margin-top: 25px;
+            text-align: left;
+            padding: 15px;
+            border: 1px dashed #ced4da;
+            border-radius: 8px;
+            background-color: #f1f1f1;
+        }
+
+        #label-container div {
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+        
+        #label-container div:last-child {
+            border-bottom: none;
+        }
+
+        /* Placeholder image style (for when no image is uploaded) */
+        #output:not([src]) {
+            border: 4px dashed var(--secondary-color);
+            background-color: #e9ecef;
+            content: "Upload Image Above";
+            color: #6c757d;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 500;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Rishaan Gandhi's AI Project</h1>
+        <h2>Trash Sorting for Recycling - Model A </h2>
+        
+        <label for="imageUpload" class="upload-label">
+            🗑️ Select Image to Classify
+        </label>
+        <input type="file" id="imageUpload" accept="image/*" onchange="loadFile(event)">
+        
+        <div id="image-container">
+            <img id="output" width="224" height="224" alt="Uploaded Image Preview"/>
+        </div>
+        
+        <div id="label-container">
+            <div>Model is loading...</div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <script type="text/javascript">
+        // The link to your model provided by Teachable Machine export panel
+        const MODEL_URL = "https://teachablemachine.withgoogle.com/models/fqbFcXGvR/";
+
+        let model, labelContainer, maxPredictions;
+        let imageElement;
+
+        // 1. Initial function: Loads the model and sets up the page
+        async function init() {
+            const modelURL = MODEL_URL + "model.json";
+            const metadataURL = MODEL_URL + "metadata.json";
+            
+            // Set initial state while loading
+            labelContainer = document.getElementById("label-container");
+            labelContainer.innerHTML = '<div>Loading model... please wait.</div>';
+
+            // Load the model and metadata
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // Clear the loading message and prepare prediction divs
+            labelContainer.innerHTML = '';
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+            
+            // Get the image element for prediction
+            imageElement = document.getElementById("output");
+        }
+
+        // 2. Function to load the image file and trigger prediction
+        const loadFile = async (event) => {
+            if (event.target.files.length === 0) return;
+
+            // Display the selected image by creating a temporary URL
+            imageElement.src = window.URL.createObjectURL(event.target.files[0]);
+            
+            // This event ensures the prediction runs ONLY after the image is fully loaded
+            imageElement.onload = async () => {
+                if (!model) {
+                    await init(); // Fallback to ensure model is loaded
+                }
+                await predict();
+            };
+        };
+
+        // 3. Function to run the image through the model
+        async function predict() {
+            // Display classifying message
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.childNodes[i].innerHTML = "Classifying...";
+            }
+
+            // Run prediction
+            const prediction = await model.predict(imageElement);
+            
+            // Update the results in the label container
+            prediction.sort((a, b) => b.probability - a.probability); // Sort results by confidence
+            
+            for (let i = 0; i < maxPredictions; i++) {
+                const probabilityPercent = (prediction[i].probability * 100).toFixed(2);
+                const resultText = prediction[i].className + ": " + probabilityPercent + "%";
+                
+                // Add a simple visual color cue for the highest probability
+                if (i === 0) {
+                     labelContainer.childNodes[i].innerHTML = `🏆 **${resultText}**`;
+                     labelContainer.childNodes[i].style.color = '#dc3545'; /* Highlight highest result */
+                } else {
+                     labelContainer.childNodes[i].innerHTML = resultText;
+                     labelContainer.childNodes[i].style.color = 'var(--text-color)';
+                }
+            }
+        }
+        
+        // Auto-initialize the model when the page loads
+        init(); 
+    </script>
+</body>
+</html>
